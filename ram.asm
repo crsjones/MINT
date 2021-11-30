@@ -15,7 +15,45 @@ TIB:
 ; ****************************************************************
 
 userVars:
+knownVars:
+EXCLUDE equ 1
+.if EXCLUDE = 1
 
+cS0:            DS 2        ; 0     \00  
+cTIB:           DS 2        ; 1     \01
+cDefs:          DS 2        ; 2     \02
+cVars:          DS 2        ; 3     \03
+cUserVars:      DS 2        ; 4     \04
+                DS 2        ; 5     \05
+                DS 2        ; 6     \06
+                DS 2        ; 7     \07
+                DS 2        ; 8     \08
+vTemp:          DS 2        ; 9     \09
+vHeapPtr:       DS 2        ; 10
+vBase16:        DS 2        ; 11
+vTIBPtr:        DS 2        ; 12
+vAlt:           DS 2        ; 13
+vByteMode:      DS 2        ; 14
+vFlags:         DS 2        ; 15
+
+GETCVEC:        DS 2        ; 16  
+PUTCVEC:        DS 2        ; 17  
+INTVEC:         DS 2        ; 18
+NMIVEC:         DS 2        ; 19
+BAUD            DS 2        ; 20
+RST08:          DS 2        ; 21
+RST10:          DS 2        ; 22
+RST18:          DS 2        ; 23
+RST20:          DS 2        ; 24
+RST28:          DS 2        ; 25
+RST30:          DS 2        ; 26
+                DS 2        ; 27
+                DS 2        ; 28
+                DS 2        ; 29
+                DS 2        ; 30
+                DS 2        ; 31
+.endif
+.if EXCLUDE = 0
 cS0:        DW 0                ; 0     \00                   
 cTIB        DW 0                ; 1     \01
 cDefs:      DW 0                ; 2     \02
@@ -50,9 +88,7 @@ RST30:      DW 0                ; 26
             DW 0                ; 29
             DW 0                ; 30
             DW 0                ; 31
-
-BUF:        DS $80
-
+.endif
 ; ****************************************************************
 ; VARS Table - holds 26 16-bit user variables
 ; ****************************************************************
@@ -63,6 +99,6 @@ vars:       DS 26 * 2
 ; ****************************************************************
 defs:       DS 26 * 2
 
-tbPtr:      DW 0                ; reserved for tests
+tbPtr:      equ  $                ; reserved for tests
 
 HEAP:         

@@ -1,0 +1,37 @@
+.engine mycomputer
+
+;RC2014 ROM Hook 6850 Serial build
+;---------------------------------
+TEC_1    EQU 0
+RC2014   EQU 1    ;Target the RC2014
+SC       EQU 0
+TEC_1F   EQU 0
+
+ROM      EQU 0  
+RAM      EQU 1    ;build for RAM
+
+EXTENDED EQU 0
+
+
+; RC2014 Configuration
+;---------------------
+.if RC2014 = 1 ;RC2014 Configuration
+
+LOADER    EQU 0
+BITBANG   EQU 0
+ACIA6850  EQU 0
+
+.if RAM = 1 ;Memory Map
+ROMSTART    EQU $8000
+RAMSTART    EQU $8800
+.endif      ;Memory map
+
+.endif ;RC2014 Configuration
+;-------------------
+
+        .ORG ROMSTART
+        jp   start
+
+.include "MINT.asm"
+.include "IOSerial.asm"
+.include "ram.asm"

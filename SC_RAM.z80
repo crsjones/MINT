@@ -1,0 +1,46 @@
+.engine mycomputer
+
+;SC Bit-Banged Serial ROM build
+;---------------------------------
+TEC_1    EQU 0
+RC2014   EQU 0
+SC       EQU 1    ;Target the Southern Cross Computer
+TEC_1F   EQU 0
+
+ROM      EQU 0
+RAM      EQU 1    ;target RAM
+
+EXTENDED EQU 0
+
+.if SC = 1 ;SC Build
+
+; Configuration for SC
+LOADER    EQU 0
+BITBANG   EQU 1
+ACIA6850  EQU 0
+
+.if RAM = 1 ;Memory Map
+ROMSTART    EQU $2000
+RAMSTART    EQU $3800
+;ROMSIZE     EQU $2000
+;RAMSIZE     EQU $2000
+.endif      ;Memory map
+
+; SC I/O port addresses
+        IO0:         .EQU 80H             ;IO PORT 0
+        IO1:         .EQU 81H             ;IO PORT 1
+        IO2:         .EQU 82H             ;IO PORT 2
+        IO3:         .EQU 83H             ;IO PORT 3
+        DISPLY:      .EQU 84H             ;DISPLAY LATCH
+        SCAN:        .EQU 85H             ;DISPLAY SCAN LATCH
+        KEYBUF:      .EQU 86H             ;KEYBOARD BUFFER
+        IO7:         .EQU 87H             ;ENABLE/DISABLE SINGLE STEPPER (IF INSTALLED)
+
+.endif ;SC Build
+
+        .ORG     ROMSTART
+        jp   start
+        
+.include "IOSerial.asm"
+.include "MINT.asm"
+.include "ram.asm"
