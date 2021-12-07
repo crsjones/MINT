@@ -1,8 +1,10 @@
 
-; RC2014 RAM build 
+; ASM80 emulator build
 
-PGMSTART    EQU $8000
-RAMSTART    EQU $8800
+.engine mycomputer
+
+PGMSTART    EQU $0000
+RAMSTART    EQU $0800
 
         .ORG PGMSTART
 
@@ -24,10 +26,10 @@ putchar:
         LD HL,(PUTCVEC)
         EX (SP),HL
         RET
-
+        
 ;.include "BitBangSerial.asm"
-;.include "Char-6850.asm"
-.include "RC2014-6850.asm"
+.include "Char-6850.asm"
+;.include "RC2014-6850.asm"
 
 .include "MINT.asm"
 .include "ram.asm"
