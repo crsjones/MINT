@@ -161,7 +161,7 @@
 ; **************************************************************************		
 ;        JP start
 
-;		.ORG ROMSTART + $180		
+		.ORG ROMSTART + $180		
 
 start:
 mint:
@@ -1231,9 +1231,11 @@ incr_:
 
 inPort_:
         POP HL
+        LD A,C
         LD C,L
         IN L,(C)
         LD H,0
+        LD C,A
         PUSH HL
         JP (IY)        
 
@@ -1287,9 +1289,11 @@ newln_:
 
 outPort_:
         POP HL
+        LD E,C
         LD C,L
         POP HL
         OUT (C),L
+        LD C,E
         JP (IY)        
 
 rot_:                               ; a b c -- b c a
