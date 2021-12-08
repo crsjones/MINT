@@ -34,8 +34,8 @@ putchar:
         EX (SP),HL
         RET
 
-.include "BitBangSerial.asm"
-;.include "Char-6850.asm"
+;.include "BitBangSerial.asm"
+.include "Char-6850.asm"
 ;.include "RC2014-6850.asm"
 
 .include "MINT.asm"
