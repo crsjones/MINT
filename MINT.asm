@@ -148,8 +148,8 @@
         ;EXTENDED    EQU 0
 
         ;ROMSIZE     EQU $800
-        DSIZE       EQU $100
-        RSIZE       EQU $100
+        DSIZE       EQU $80
+        RSIZE       EQU $80
         TIBSIZE     EQU $100
         TRUE        EQU 1
         FALSE       EQU 0
@@ -171,13 +171,27 @@ mint:
         .cstr "`MINT V1.0`\\N"
         JP interpret
 
+; ***********************************************************************
+; Initial values for user mintVars		
+; ***********************************************************************		
+iSysVars:
+        DW dStack               ; a vS0
+        DW FALSE                ; b vBase16
+        DW 0                    ; c vTIBPtr
+        DW 0                    ; d 
+        DW 0                    ; e 
+        DW 0                    ; f 
+        DW 0                    ; g 
+        DW HEAP                 ; h vHeapPtr
+
 initialize:
         LD IX,RSTACK
         LD IY,NEXT			    ; IY provides a faster jump to NEXT
-        LD HL,iSysConsts
-        LD DE,sysConsts
-        LD BC,16 * 2
+        LD HL,iSysVars
+        LD DE,sysVars
+        LD BC,8 * 2
         LDIR
+        
         LD HL,defs
         LD B,26
 init1:
@@ -187,6 +201,19 @@ init1:
         INC HL
         DJNZ init1
         RET
+
+macro:
+        LD (vTIBPtr),BC
+        LD HL,ctrlCodes
+        ADD A,L
+        LD L,A
+        LD E,(HL)
+        LD D,msb(macros)
+        PUSH DE
+        call ENTER
+        .cstr "\\G"
+        LD BC,(vTIBPtr)
+        JR interpret2
 
 interpret:
         call ENTER
@@ -229,7 +256,7 @@ waitchar:
         CP '\r'                 ; carriage return?
         JR Z,waitchar3
         LD D,0
-        JP macro    
+        JR macro    
 
 waitchar1:
         LD HL,TIB
@@ -244,6 +271,9 @@ waitchar3:
         LD HL,TIB
         ADD HL,BC
         LD (HL),"\r"            ; store the crlf in textbuf
+        INC HL
+        LD (HL),"\n"            
+        INC BC
         INC BC
         CALL crlf               ; echo character to screen
         LD A,E                  ; if zero nesting append and ETX after \r
@@ -283,20 +313,35 @@ waitchar4:
 NEXT:   
         INC BC                      ; 6t    Increment the IP
         LD A, (BC)                  ; 7t    Get the next character and dispatch
-		
-dispatch:                        
-        CP 0                        ;       NULL? exit Mint
-        JP Z, exit_
-        CP $03                      ;       ETX? interpret next line       
-        JP Z,interpret
-        SUB ' '                     ; 7t    remove char offset
-        JR C,NEXT                   ;       ignore char 
-        LD DE,opcodes               ; 7t    Start address of jump table         
-        LD E,A                      ; 4t    Index into table
-        LD A,(DE)                   ; 7t    get low jump address
+        LD L,A                      ; 4t    Index into table
+        LD H,msb(opcodes)           ; 7t    Start address of jump table         
+        LD L,(HL)                   ; 7t    get low jump address
         LD H,msb(page4)             ; 7t    Load H with the 1st page address
-        LD L,A                      ; 4t    and put into L
         JP (HL)                     ; 4t    Jump to routine
+
+rpush:
+        DEC IX                  
+        LD (IX+0),H
+        DEC IX
+        LD (IX+0),L
+        RET
+
+rpop:
+        LD L,(IX+0)         
+        INC IX              
+        LD H,(IX+0)
+        INC IX                  
+        RET
+
+alt:
+        INC BC
+        LD A,(BC)
+        LD HL,altCodes
+        ADD A,L
+        LD L,A
+        LD L,(HL)           ; 7t    get low jump address
+        LD H, msb(page6)    ; Load H with the 5th page address
+        JP  (HL)                    ; 4t    Jump to routine
 
 ENTER:
         LD HL,BC
@@ -304,32 +349,6 @@ ENTER:
         POP BC
         DEC BC
         JP  (IY)                ; Execute code from User def
-
-printdec:
-
-;Number in hl to decimal ASCII
-
-;inputs:	hl = number to ASCII
-;example: hl=300 outputs '00300'
-;destroys: af, de, hl
-DispHL:
-        ld	de,-10000
-        call	Num1
-        ld	de,-1000
-        call	Num1
-        ld	de,-100
-        call	Num1
-        ld	e,-10
-        call	Num1
-        ld	e,-1
-Num1:	    
-        ld	a,'0'-1
-Num2:	    
-        inc	a
-        add	hl,de
-        jr	c,Num2
-        sbc	hl,de
-        JP putchar
 
 ; ARRAY compilation routine
 compNEXT:
@@ -346,28 +365,6 @@ compNext1:
         LD (vHeapPtr),HL    ; save heap ptr
         JP NEXT
 
-space:       
-        LD A,' '           
-        JP putchar
-
-writeChar:
-        LD (DE),A
-        INC DE
-        JP putchar
-
-macro:
-        LD (vTIBPtr),BC
-        LD HL,ctrlCodes
-        ADD A,L
-        LD L,A
-        LD E,(HL)
-        LD D,msb(macros)
-        PUSH DE
-        call ENTER
-        .cstr "\\G"
-        LD BC,(vTIBPtr)
-        JP interpret2
-
 ; **************************************************************************
 ; Macros must be written in Mint and end with ; 
 ; this code must not span pages
@@ -382,9 +379,44 @@ macros:
 ; **************************************************************************
         .align $100
 opcodes:
-        DB    lsb(nop_)    ;    SP
-        DB    lsb(store_)  ;    !            
-        DB    lsb(dup_)    ;    "
+; ***********************************************************************
+; Initial values for user mintVars		
+; ***********************************************************************		
+        DB    lsb(exit_)    ;   NUL 
+        DB    lsb(nop_)     ;   SOH 
+        DB    lsb(nop_)     ;   STX 
+        DB    lsb(etx_)     ;   ETX 
+        DB    lsb(nop_)     ;   EOT 
+        DB    lsb(nop_)     ;   ENQ 
+        DB    lsb(nop_)     ;   ACK 
+        DB    lsb(nop_)     ;   BEL 
+        DB    lsb(nop_)     ;   BS  
+        DB    lsb(nop_)     ;   TAB 
+        DB    lsb(nop_)     ;   LF  
+        DB    lsb(nop_)     ;   VT  
+        DB    lsb(nop_)     ;   FF  
+        DB    lsb(nop_)     ;   CR  
+        DB    lsb(nop_)     ;   SO  
+        DB    lsb(nop_)     ;   SI  
+        DB    lsb(nop_)     ;   DLE 
+        DB    lsb(nop_)     ;   DC1 
+        DB    lsb(nop_)     ;   DC2 
+        DB    lsb(nop_)     ;   DC3 
+        DB    lsb(nop_)     ;   DC4 
+        DB    lsb(nop_)     ;   NAK 
+        DB    lsb(nop_)     ;   SYN 
+        DB    lsb(nop_)     ;   ETB 
+        DB    lsb(nop_)     ;   CAN 
+        DB    lsb(nop_)     ;   EM  
+        DB    lsb(nop_)     ;   SUB 
+        DB    lsb(nop_)     ;   ESC 
+        DB    lsb(nop_)     ;   FS  
+        DB    lsb(nop_)     ;   GS  
+        DB    lsb(nop_)     ;   RS  
+        DB    lsb(nop_)     ;   US  
+        DB    lsb(nop_)     ;   SP
+        DB    lsb(store_)   ;   !            
+        DB    lsb(dup_)     ;   "
         DB    lsb(hex_)    ;    #
         DB    lsb(swap_)   ;    $            
         DB    lsb(over_)   ;    %            
@@ -479,29 +511,6 @@ opcodes:
         DB    lsb(inv_)    ;    ~            
         DB    lsb(nop_)    ;    backspace
 
-; ***********************************************************************
-; Initial values for user mintVars		
-; ***********************************************************************		
-iSysConsts:
-        DW dStack               ; \0 cS0
-        DW TIB                  ; \1 cTIB
-        DW defs                 ; \2 cDefs
-        DW vars                 ; \3 cVars
-        DW opcodes              ; \4 cOpcodes
-        DW macros               ; \5 cMacros
-        DW userVars             ; \6 cUserVars
-        DW 0                    ; \7 
-
-iUserVars:
-        DW alt1                 ; a vAltCodes
-        DW FALSE                ; b vBase16
-        DW 0                    ; c vTIBPtr
-        DW 0                    ; d putChar
-        DW 0                    ; e enter
-        DW 0                    ; f vIFTEMode
-        DW 0                    ; g vByteMode
-        DW HEAP                 ; h vHeapPtr
-
         
 ; ***********************************************************************
 ; Alternate function codes		
@@ -556,14 +565,14 @@ altCodes:
         DB     lsb(aNop_)      ;    -  
         DB     lsb(aNop_)      ;    .  
         DB     lsb(aNop_)      ;    /
-        DB     lsb(sysConst_)  ;    0  ( -- adr ) start of data stack constant         
-        DB     lsb(sysConst_)  ;    1  ; returns HERE variable
-        DB     lsb(sysConst_)  ;    2  ( -- adr ) TIBPtr variable          
-        DB     lsb(sysConst_)  ;    3  ( -- adr ) isHex variable
-        DB     lsb(sysConst_)  ;    4            
-        DB     lsb(sysConst_)  ;    5            
-        DB     lsb(sysConst_)  ;    6            
-        DB     lsb(sysConst_)  ;    7
+        DB     lsb(aNop_)      ;    0           
+        DB     lsb(aNop_)      ;    1  ; returns HERE variable
+        DB     lsb(aNop_)      ;    2  ( -- adr ) TIBPtr variable          
+        DB     lsb(aNop_)      ;    3  ( -- adr ) isHex variable
+        DB     lsb(aNop_)      ;    4            
+        DB     lsb(aNop_)      ;    5            
+        DB     lsb(aNop_)      ;    6            
+        DB     lsb(aNop_)      ;    7
         DB     lsb(aNop_)      ;    8            
         DB     lsb(aNop_)      ;    9        
         DB     lsb(aNop_)      ;    :  start defining a macro        
@@ -589,7 +598,7 @@ altCodes:
         DB     lsb(newln_)     ;    N   ; prints a newline to output
         DB     lsb(outPort_)   ;    O  ( val port -- )
         DB     lsb(printStk_)  ;    P  ( -- ) non-destructively prints stack
-        DB     lsb(quit_)      ;    Q  quits from Mint REPL
+        DB     lsb(aNop_)      ;    Q  quits from Mint REPL
         DB     lsb(rot_)       ;    R  ( a b c -- b c a )
         DB     lsb(aNop_)      ;    S
         DB     lsb(aNop_)      ;    T
@@ -605,32 +614,32 @@ altCodes:
         DB     lsb(charCode_)  ;    ^
         DB     lsb(sign_)      ;    _)  ( n -- b ) returns true if -ve 
         DB     lsb(aNop_)      ;    `            
-        DB     lsb(userVar_)   ;    a
-        DB     lsb(userVar_)   ;    b  ; base16 variable
-        DB     lsb(userVar_)   ;    c  ; TIBPtr variable
-        DB     lsb(userVar_)   ;    d  
-        DB     lsb(userVar_)   ;    e  
-        DB     lsb(userVar_)   ;    f
-        DB     lsb(userVar_)   ;    g  
-        DB     lsb(userVar_)   ;    h  ; heap ptr variable
+        DB     lsb(sysVar_)   ;    a  ; start of data stack variable
+        DB     lsb(sysVar_)   ;    b  ; base16 variable
+        DB     lsb(sysVar_)   ;    c  ; TIBPtr variable
+        DB     lsb(sysVar_)   ;    d  
+        DB     lsb(sysVar_)   ;    e  
+        DB     lsb(sysVar_)   ;    f
+        DB     lsb(sysVar_)   ;    g  
+        DB     lsb(sysVar_)   ;    h  ; heap ptr variable
         DB     lsb(i_)         ;    i  ; returns index variable of current loop          
         DB     lsb(j_)         ;    j  ; returns index variable of outer loop
-        DB     lsb(userVar_)   ;    k  
-        DB     lsb(userVar_)   ;    l
-        DB     lsb(userVar_)   ;    m  ( a b -- c ) return the minimum value
-        DB     lsb(userVar_)   ;    n  
-        DB     lsb(userVar_)   ;    o
-        DB     lsb(userVar_)   ;    p  
-        DB     lsb(userVar_)   ;    q           
-        DB     lsb(userVar_)   ;    r
-        DB     lsb(userVar_)   ;    s 
-        DB     lsb(userVar_)   ;    t
-        DB     lsb(userVar_)   ;    u
-        DB     lsb(userVar_)   ;    v   
-        DB     lsb(userVar_)   ;    w   
-        DB     lsb(userVar_)   ;    x
-        DB     lsb(userVar_)   ;    y
-        DB     lsb(userVar_)   ;    z
+        DB     lsb(sysVar_)   ;    k  
+        DB     lsb(sysVar_)   ;    l
+        DB     lsb(sysVar_)   ;    m  ( a b -- c ) return the minimum value
+        DB     lsb(sysVar_)   ;    n  
+        DB     lsb(sysVar_)   ;    o
+        DB     lsb(sysVar_)   ;    p  
+        DB     lsb(sysVar_)   ;    q           
+        DB     lsb(sysVar_)   ;    r
+        DB     lsb(sysVar_)   ;    s 
+        DB     lsb(sysVar_)   ;    t
+        DB     lsb(sysVar_)   ;    u
+        DB     lsb(sysVar_)   ;    v   
+        DB     lsb(sysVar_)   ;    w   
+        DB     lsb(sysVar_)   ;    x
+        DB     lsb(sysVar_)   ;    y
+        DB     lsb(sysVar_)   ;    z
         DB     lsb(aNop_)      ;    {
         DB     lsb(aNop_)      ;    |            
         DB     lsb(aNop_)      ;    }            
@@ -645,8 +654,7 @@ altCodes:
 page4:
 
 alt_:        
-        LD HL,(vAlt)
-        JP (HL)
+        JP alt
 
 and_:        
         POP     DE          ; 10t Bitwise AND the top 2 elements of the stack
@@ -702,12 +710,12 @@ call_:
         LD HL,BC
         CALL rpush              ; save Instruction Pointer
         LD A,(BC)
-        SUB "A"                 ; Calc index
+
+        SUB "A" - ((DEFS - mintVars)/2)  
         ADD A,A
-        LD HL,DEFS
-        LD E,A
-        LD D,0
-        ADD HL,DE
+        LD L,A
+        LD H,msb(mintVars)
+
         LD C,(HL)
         INC HL
         LD B,(HL)
@@ -738,7 +746,8 @@ dup_:
         PUSH    HL
         PUSH    HL
         JP (IY)
-
+etx_:
+        JP interpret
 exit_:
         INC BC
         LD DE,BC                
@@ -756,8 +765,7 @@ fetch1:
         PUSH    DE          ; 11t
         JP      (IY)        ; 8t
                             ; 49t 
-hex_:   CALL     get_hex
-        JR       less           ; piggyback for ending
+hex_:   JP hex
 
 hexp_:                              ; print hexadecimal
         POP     HL
@@ -777,8 +785,6 @@ over_:
         PUSH    DE          ; And push it to top of stack
         JP (IY)        
     
-quit_:      RET                     ; exit interpreter
-
 ret_:
         CALL rpop               ; Restore Instruction pointer
         LD BC,HL                
@@ -864,41 +870,35 @@ var_:
         PUSH HL
         JP (IY)
         
-str_:       JR str
 again_:     JR again
 mul_:       JR mul      
 div_:       JR div
 getRef_:    
+        INC BC
+        LD A,(BC)
+
+        SUB "A" - ((DEFS - mintVars)/2)  
+        ADD A,A
+        LD L,A
+        LD H,msb(mintVars)
+
+        JP fetch1
 ;*******************************************************************
 ; Page 5 primitive routines 
 ;*******************************************************************
         ;falls through 
-getRef:                         
-        INC BC
-        LD A,(BC)
-        SUB "A"
-        ADD A,A
-        LD E,A
-        LD D,0
-        LD HL,defs
-        ADD HL,DE
-        JP fetch1
-
-; **************************************************************************             
-; Print the string between the `backticks`
-
-str:                       
+str_:                       
         INC BC
         
 nextchar:            
         LD A, (BC)
         INC BC
         CP "`"              ; ` is the string terminator
-        JR Z,stringend
+        JR Z,str2
         CALL putchar
         JR   nextchar
 
-stringend:  
+str2:  
         DEC BC
         JP   (IY) 
 
@@ -1083,39 +1083,54 @@ times10:                        ; Multiply digit(s) in HL by 10
         JR  number1
                 
 endnum:
-        PUSH HL                 ; 11t   Put the number on the stack
         DEC BC
+        PUSH HL                 ; 11t   Put the number on the stack
         JP (IY)                 ; and process the next character
 
-rpush:
-        DEC IX                  
-        LD (IX+0),H
-        DEC IX
-        LD (IX+0),L
-        RET
+printdec:
 
-rpop:
-        LD L,(IX+0)         
-        INC IX              
-        LD H,(IX+0)
-        INC IX                  
-        RET
+;Number in hl to decimal ASCII
+
+;inputs:	hl = number to ASCII
+;example: hl=300 outputs '00300'
+;destroys: af, de, hl
+DispHL:
+        ld	de,-10000
+        call	Num1
+        ld	de,-1000
+        call	Num1
+        ld	de,-100
+        call	Num1
+        ld	e,-10
+        call	Num1
+        ld	e,-1
+Num1:	    
+        ld	a,'0'-1
+Num2:	    
+        inc	a
+        add	hl,de
+        jr	c,Num2
+        sbc	hl,de
+        JP putchar
 
 crlf:       
         LD A, '\r'
         CALL putchar
         LD A, '\n'           
+        JR writeChar1
+
+space:       
+        LD A,' '           
+        JR writeChar1
+
+writeChar:
+        LD (DE),A
+        INC DE
+writeChar1:
         JP putchar
 
-alt1:
-        INC BC
-        LD A,(BC)
-        LD HL,altCodes
-        ADD A,L
-        LD L,A
-        LD L,(HL)           ; 7t    get low jump address
-        LD H, msb(page6)    ; Load H with the 5th page address
-        JP  (HL)                    ; 4t    Jump to routine
+
+
 
 ; **************************************************************************
 ; Page 6 Alt primitives
@@ -1146,7 +1161,9 @@ charCode_:
 comment_:
         INC BC              ; point to next char
         LD A,(BC)
-        CP "\r"             ; terminate at newline 
+        CP "\r"             ; terminate at cr 
+        JR NZ,comment_
+        CP "\n"             ; terminate at lf 
         JR NZ,comment_
         DEC BC
         JP   (IY) 
@@ -1203,9 +1220,9 @@ go_:
         DEC BC
         JP  (IY)                ; Execute code from User def
 
-userVar_:
+sysVar_:
         LD A,(BC)
-        SUB "a" - ((userVars - mintVars) / 2)  
+        SUB "a" - ((sysVars - mintVars)/2) 
         ADD A,A
         LD L,A
         LD H,msb(mintVars)
@@ -1253,14 +1270,6 @@ key_:
         LD H,0
         PUSH HL
         JP (IY)
-
-sysConst_:
-        LD A,(BC)
-        SUB "0"                 ; Calc index
-        ADD A,A
-        LD HL,sysConsts
-        LD L,A
-        JP fetch1
 
 least_:                           ; a b -- c
         POP DE
@@ -1334,7 +1343,7 @@ printStk_:
         ; falls through
 printStk:
         call ENTER
-        DB "\\02-\\D1-\\x!\\x@\\_0=(\\x@(",$22,"@.2-))'",0
+        DB "\\a@2-\\D1-",$22,"\\_0=((",$22,"@.2-))'"             
         JP (IY)
 
 ; **************************************************************************             
@@ -1452,34 +1461,27 @@ end_def:
 
 ; ***************************************************************************
 
-get_hex:
-		LD HL,$0000				; 10t Clear HL to accept the number
+hex:
+	LD HL,$0000				; 10t Clear HL to accept the number
+hex1:
         INC BC
         LD A,(BC)				; 7t  Get the character which is a numeral
-        
-get_hex1:
         BIT 6,A                 ; 7t    is it uppercase alpha?
-        JR Z, ASCHX1            ; no a decimal
+        JR Z, hex2              ; no a decimal
         SUB 7                   ; sub 7  to make $A - $F
-aschx1:
+hex2:
         SUB $30                 ; 7t    Form decimal digit
-        ADD A,L                 ; 4t    Add into bottom of HL
-        LD  L,A                 ; 4t
-        INC BC                  ; 6t    Increment IP
-        LD A, (BC)              ; 7t    and get the next character
-        CP $20                  ; 7t    is a terminating space?
-        JR Z, endhex            ; 7/12t Not a number / end of number
-
-times16:                        ; Multiply digit(s) in HL by 16
-        ADD HL,HL               ; 11t    2X
+        JP C,endnum
+        CP $0F+1
+        JP NC,endnum
+        ADD HL,HL               ; 11t    2X ; Multiply digit(s) in HL by 16
         ADD HL,HL               ; 11t    4X
         ADD HL,HL               ; 11t    8X
         ADD HL,HL               ; 11t   16X     
- 
-        JR  get_hex1
-                
-endhex: RET
-        
+        ADD A,L                 ; 4t    Add into bottom of HL
+        LD  L,A                 ; 4t
+        JR  hex1
+
 printhex:       
                                 ; Display HL as a 16-bit number in hex.
         PUSH BC                 ; preserve the IP
