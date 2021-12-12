@@ -14,51 +14,26 @@ SCAN:        .EQU 85H             ;display scan latch
 KEYBUF:      .EQU 86H             ;keyboard buffer
 IO7:         .EQU 87H             ;toggle single stepper (if fitted)
 
-
+;SC hexadecimal to 7 segment display code table
             .ORG    ROMSTART+$40
-            
-;hexadecimal to 7 segment display code table
-
-;TEC-1
-;sevensegment:
-;            .DB 0EBH,28H,0CDH,0ADH ;0,1,2,3
-;            .DB 2EH,0A7H,0E7H,29H ;4,5,6,7
-;            .DB 0EFH,2FH,6FH,0E6H ;8,9,A,B
-;            .DB 0C3H,0ECH,0C7H,47H ;C,D,E,F
-
-; SC
 sevensegment:
             .DB 3FH,06H,5BH,4FH ;0,1,2,3
             .DB 66H,6DH,7DH,07H ;4,5,6,7
             .DB 7FH,6FH,77H,7CH ;8,9,A,B
             .DB 39H,5EH,79H,71H ;C,D,E,F
 
-;---------------
-; BIT TIME DELAY
-;---------------
-;DELAY FOR ONE SERIAL BIT TIME
-;ENTRY : HL = DELAY TIME
-; NO REGISTERS MODIFIED
-;
-PWRUP:   
-        LD    hl,$2000
-BITIME:
-        PUSH  HL
-        PUSH  DE
-        LD    DE,0001H
-BITIM1:  
-        SBC   HL,DE
-        JP    NC,BITIM1
-        POP   DE
-        POP   HL
-IntRet:  
-        RET
-
+; SC IO Port locations
+            .ORG     ROMSTART+$50
+            .DB   $86               ;KEYBUF
+            .DB   $85               ;SCAN
+            .DB   $84               ;DISPLY
+            .DB   $80               ;IO0
+            .DB   $81               ;IO1
+            .DB   $82               ;IO2
+            .DB   $83               ;IO3
+            .DB   $87               :IO7
 
 .include "ROMStartup.asm"
-
-
-        .ORG ROMSTART
 
         LD HL,RxChar
         LD (GETCVEC),HL

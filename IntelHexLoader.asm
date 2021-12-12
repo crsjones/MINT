@@ -1,97 +1,70 @@
-;-----------------------
-; RECEIVE INTEL HEX FILE
-;-----------------------
-INTELH:	
-    LD	IX,BUF
-;
-; WAIT FOR RECORD MARK
-;
-INTEL1:	
-    XOR	A
-	LD	(IX+3),A	;CLEAR CHECKSUM
-	CALL	rxChar	;WAIT FOR THE RECORD MARK
-	CP	':'	;TO BE TRANSMITTED
-	JR	NZ,INTEL1	;NOT RECORD MARK
-;
-; GET RECORD LENGTH
-;
-	CALL	GETBYT
-	LD	(IX+0),A	;NUMBER OF DATA BYTES
-;
-; GET ADDRESS FIELD
-;
-	CALL	GETBYT
-	LD	(IX+2),A	;LOAD ADDRESS HIGH BYTE
-	CALL	GETBYT
-	LD	(IX+1),A	;LOAD ADDRESS LOW BYTE
-;
-; GET RECORD TYPE
-;
-	CALL	GETBYT
-	JR	NZ,INTEL4	;END OF FILE RECORD
-;
-; READ IN THE DATA
-;
-	LD	B,(IX+0)	;NUMBER OF DATA BYTES
-	LD	H,(IX+2)	;LOAD ADDRESS HIGH BYTE
-	LD	L,(IX+1)	;LOAD ADDRESS LOW BYTE
 
-INTEL2:	
-    CALL	GETBYT	;GET DATA BYTE
-	LD	(HL),A	;STORE DATA BYTE
-	INC	HL
-	DJNZ	INTEL2	;LOAD MORE BYTES
-;
-; GET CHECKSUM AND COMPARE
-;
-	LD	A,(IX+3)	;CONVERT CHECKSUM TO
-	NEG		;TWO'S COMPLEMENT
-	LD	(IX+4),A	;SAVE COMPUTED CHECKSUM
-	CALL	GETBYT
-	LD	(IX+3),A	;SAVE RECORD CHECKSUM
-	CP	(IX+4)	;COMPARE CHECKSUM
-	JR	Z,INTEL1	;CHECKSUM OK,NEXT RECORD
-    RET             ;NZ=CHECKSUM ERROR
-;
-; END OF FILE RECORD
-;
-INTEL4:	
-    LD	A,(IX+3)	;CONVERT CHECKSUM TO
-	NEG		;TWO'S COMPLEMENT
-	LD	(IX+4),A	;SAVE COMPUTED CHECKSUM
-	CALL	GETBYT
-	LD	(IX+3),A	;SAVE EOF CHECKSUM
-	CP	(IX+4)	;COMPARE CHECKSUM
-	RET  	    ;NZ=CHECKSUM ERROR
-;--------------------------
-; GET BYTE FROM SERIAL PORT
-;--------------------------
-GETBYT:	
-    PUSH	BC
-	CALL	rxChar
-	BIT	6,A
-	JR	Z,GETBT1
-	ADD	A,09H
-GETBT1:	
-    AND	0FH
-	SLA 	A
-	SLA	A
-	SLA	A
-	SLA	A
-	LD	C,A
-;
-; GET LOW NYBBLE
-;
-	CALL	rxChar
-	BIT	6,A
-	JR	Z,GETBT2
-	ADD	A,09H
-GETBT2	AND	0FH
-	OR	C
-	LD	B,A
-	ADD	A,(IX+3)
-	LD	(IX+3),A	;ADD TO CHECKSUM
-	LD	A,B
-	AND	A	;CLEAR CARRY
-    POP	BC
-	RET
+; Intel Hex file downloader
+intelhex:
+        XOR    A            ;clear
+        LD     C,A          ;calculated checksum
+; wait for the record mark ':'
+waitmark:
+        CALL  getchar       ;wait for the record mark
+        CP    ':'          ;to be transmitted
+        JR    NZ,waitmark
+;get the record length
+        CALL  GetByte
+        LD   B,A              ;the number of data bytes
+;get the address
+        CALL  GetByte
+        LD    H,A              ;the address high byte
+        CALL  GetByte  
+        LD    L,A              ;the address low byte
+;get the record type
+        CALL  GetByte
+        JR    NZ,checksum      ;end of file record
+        
+;C=checksum
+;B=number of data bytes
+;hl=destination address
+
+loadbytes:
+        CALL  GetByte           ;get the record bytes
+        LD    (HL),A            ;and save to RAM
+        INC   HL                ;until there are
+        DJNZ  loadbytes         ;no more
+        CALL  checksum          ;checksum OK?
+        JR    Z,intelhex        ;checksum OK, get next record
+        RET                     ;checksum error A>0
+
+;the sum of all the bytes (except record mark )
+;including the checksum equals zero
+checksum:  
+        CALL  GetByte
+        LD    A,C
+        OR    $00               ;checksum ok  A=0
+        RET
+
+;get and convert two characters to byte
+;--------------------------------------
+GetByte:
+        CALL   GetNybble        ;get the high nybble
+        SLA    A
+        SLA    A
+        SLA    A
+        SLA    A
+        LD     D,A
+        CALL   GetNybble        ;get the low nybble
+        OR     D                ;make a byte
+        PUSH   AF
+        ADD    A,C              ;add to
+        LD     C,A              ;the checksum
+        POP    AF               ;and return the received byte
+        ret
+        
+; get a nybble 
+;-------------
+GetNybble:
+      CALL    getchar
+      BIT     6,A          ;convert ascii A-F
+      JR     Z,NotA2F        ;into lower
+      ADD     A,09H        ;nybble hex
+NotA2F: AND     0FH
+      RET
+     .END
