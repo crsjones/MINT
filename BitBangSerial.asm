@@ -16,7 +16,9 @@ InitialiseSerial:
         OUT   (C),A             ;make the output port high
         LD    HL,B4800
         LD    (BAUD),HL         ;set up the baud rate
-        LD    HL,$2000
+        LD    HL,$FFFF
+        CALL  bitime
+        CALL  bitime
         CALL  bitime
         RET
 

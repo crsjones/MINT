@@ -32,7 +32,7 @@ sevensegment:
             .DB   $04               ;PORT4
             .DB   $05               ;PORT5
             .DB   $06               ;PORT6
-            .DB   $07               :PORT7
+            .DB   $07               ;PORT7
 
 .include "ROMStartup.asm"
 
@@ -62,7 +62,7 @@ IntRet:
 ;.include "RC2014-6850.asm"
 
 ;Intel Hex File Load
-;.include "IntelHexLoader.asm"
+.include "IntelHexLoader.asm"
 
          .org PGMSTART
 .include "MINT.asm"

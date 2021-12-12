@@ -42,7 +42,7 @@ sevensegment:
             .DB   $81               ;IO1
             .DB   $82               ;IO2
             .DB   $83               ;IO3
-            .DB   $87               :IO7
+            .DB   $87               ;IO7
 
 getchar:
         LD HL,(GETCVEC)

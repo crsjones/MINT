@@ -14,6 +14,11 @@ SCAN:        .EQU 85H             ;display scan latch
 KEYBUF:      .EQU 86H             ;keyboard buffer
 IO7:         .EQU 87H             ;toggle single stepper (if fitted)
 
+            .ORG  ROMSTART+$03
+iotable: 
+        LD DE,ioports
+        JR bytable
+
 ;SC hexadecimal to 7 segment display code table
             .ORG    ROMSTART+$40
 sevensegment:
@@ -24,6 +29,7 @@ sevensegment:
 
 ; SC IO Port locations
             .ORG     ROMSTART+$50
+ioports:
             .DB   $86               ;KEYBUF
             .DB   $85               ;SCAN
             .DB   $84               ;DISPLY
@@ -31,7 +37,18 @@ sevensegment:
             .DB   $81               ;IO1
             .DB   $82               ;IO2
             .DB   $83               ;IO3
-            .DB   $87               :IO7
+            .DB   $87               ;IO7
+
+segmentcode: 
+        LD DE,sevensegment
+bytable:
+       POP    HL            ;return address
+       POP    HL            ;get index
+       ADD    HL,DE
+       LD     L,(HL)
+       LD     H,$00
+       PUSH   HL
+       JP     (IY)
 
 .include "ROMStartup.asm"
 
@@ -52,12 +69,17 @@ putchar:
         PUSH HL
         LD HL,(PUTCVEC)
         EX (SP),HL
-        RET
+IntRet: RET
 
+;serial port
 .include "BitBangSerial.asm"
 ;.include "Char-6850.asm"
 ;.include "RC2014-6850.asm"
 
-         .org PGMSTART
+;Intel Hex File Load
+.include "IntelHexLoader.asm"
+
+;MINT
+         .ORG PGMSTART
 .include "MINT.asm"
 .include "ram.asm"
