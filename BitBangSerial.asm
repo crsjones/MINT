@@ -11,15 +11,13 @@ B9600:	.EQU	000BH
 ;initialise the bit bang serial port
 ;-----------------------------------
 InitialiseSerial:
+        LD    HL,$2000          ;power up delay
+        CALL  bitime
         LD    A,$40
         LD    C,SCAN
         OUT   (C),A             ;make the output port high
         LD    HL,B4800
         LD    (BAUD),HL         ;set up the baud rate
-        LD    HL,$FFFF
-        CALL  bitime
-        CALL  bitime
-        CALL  bitime
         RET
 
 ; bit bang serial transmit routine
