@@ -16,7 +16,7 @@ IO7:         .EQU 87H             ;toggle single stepper (if fitted)
 
             .ORG  ROMSTART+$03
 iotable: 
-        LD DE,ioports
+        LD HL,ioports
         JR bytable
 
 ;SC hexadecimal to 7 segment display code table
@@ -40,10 +40,10 @@ ioports:
             .DB   $87               ;IO7
 
 segmentcode: 
-        LD DE,sevensegment
+        LD HL,sevensegment
 bytable:
-       POP    HL            ;return address
-       POP    HL            ;get index
+       POP    DE           ;discard return address
+       POP    DE           ;get index
        ADD    HL,DE
        LD     L,(HL)
        LD     H,$00

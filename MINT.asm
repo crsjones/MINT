@@ -25,7 +25,7 @@
 ; Page 0  Initialisation
 ; **************************************************************************		
 
-		.ORG ROMSTART + $180		
+;		.ORG ROMSTART + $180		
 
 start:
 mint:

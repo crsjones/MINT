@@ -1,4 +1,20 @@
 
+        .ORG    ROMSTART+$0d
+         JP      hexloader
+
+        .ORG     ROMSTART+$0120
+hexloader:
+        POP  HL      ;discard return address
+        PUSH BC
+;        PUSH IX
+;        PUSH IY      ;save mint state
+        CALL intelhex
+        LD   H,$00
+        LD   L,A     ;get returned flag
+        POP  BC
+        PUSH HL      ;return the flag
+        JP  (IY)     ;return to mint
+
 ; Intel Hex file downloader
 intelhex:
         XOR    A            ;clear
@@ -56,7 +72,7 @@ GetByte:
         ADD    A,C              ;add to
         LD     C,A              ;the checksum
         POP    AF               ;and return the received byte
-        ret
+        RET
         
 ; get a nybble 
 ;-------------
@@ -67,4 +83,3 @@ GetNybble:
       ADD     A,09H        ;nybble hex
 NotA2F: AND     0FH
       RET
-     .END
