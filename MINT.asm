@@ -427,7 +427,7 @@ altCodes:
         DB     lsb(aNop_)       ;    %            
         DB     lsb(aNop_)       ;    &
         DB     lsb(aNop_)       ;    '
-        DB     lsb(ifte_)       ;    (  ( b -- )            ; sets IFTEMode true      
+        DB     lsb(ifte_)       ;    (  ( b -- )              
         DB     lsb(aNop_)       ;    )
         DB     lsb(aNop_)       ;    *            
         DB     lsb(incr_)       ;    +  ( adr -- ) decrements variable at address
@@ -733,6 +733,7 @@ var_:
 div_:       JR div
 mul_:   JR mul      
 
+again_:     JP again
 str_:                       
 str:                                ;= 15
         INC BC
@@ -749,39 +750,10 @@ str2:
         DEC BC
         JP   (IY) 
 
-again_:     JR again
 ;*******************************************************************
 ; Page 5 primitive routines 
 ;*******************************************************************
         ;falls through 
-again:                              ;= 20
-        LD HL,vIFTEMode
-        LD A,(HL)
-        OR A
-        JR Z,again1
-        LD HL,FALSE                 ; push FALSE condition on stack
-        PUSH HL
-        JP (IY)
-
-again1:   
-        LD E,(IX+0)                 ; peek loop var
-        LD D,(IX+1)                 
-        LD L,(IX+2)                 ; peek loop limit
-        LD H,(IX+3)                 
-        OR A
-        SBC HL,DE
-        JR Z,again2
-        INC DE
-        LD (IX+0),E                 ; poke loop var
-        LD (IX+1),D                 
-        LD C,(IX+4)                 ; peek loop address
-        LD B,(IX+5)                 
-        JP (IY)
-again2:   
-        LD DE,6                     ; drop loop frame
-        ADD IX,DE
-        JP (IY)
-
 alt:                                ;= 11
         INC BC
         LD A,(BC)
@@ -791,6 +763,24 @@ alt:                                ;= 11
         LD L,(HL)                   ; 7t    get low jump address
         LD H, msb(page6)            ; Load H with the 5th page address
         JP  (HL)                    ; 4t    Jump to routine
+
+; end a word array
+arrEnd:                     ;= 27
+        CALL rpop               ; DE = start of array
+        PUSH HL
+        EX DE,HL
+        LD HL,(vHeapPtr)        ; HL = heap ptr
+        OR A
+        SBC HL,DE               ; bytes on heap 
+        LD A,(vByteMode)
+        OR A
+        JR NZ,arrEnd2
+        SRL H           ; BC = m words
+        RR L
+arrEnd2:
+        PUSH HL 
+        LD IY,NEXT
+        JP (IY)         ; hardwired to NEXT
 
 ; ********************************************************************
 ; 16-bit multiply  
@@ -875,9 +865,6 @@ div_end:
 ; *************************************
         	                    ;= 23                     
 begin:                          ; Left parentesis begins a loop
-        LD HL,vIFTEMode
-        LD (HL),0
-
         POP HL
         LD A,L                  ; zero?
         OR H
@@ -903,15 +890,40 @@ begin2:
         XOR A
         OR E
         JR NZ,begin2
-        
-        LD HL,vIFTEMode
-        LD A,(HL)
-        OR A
-        JR Z,begin3
-        LD HL,TRUE                 ; push FALSE condition on stack
-        PUSH HL
 begin3:
         JP (IY)
+
+again:   
+        LD E,(IX+0)                 ; peek loop var
+        LD D,(IX+1)                 
+        
+        LD A,D                      ; check if IFTEMode
+        AND E
+        INC A
+        JR NZ,again1
+        INC DE
+        PUSH DE                     ; push FALSE condition
+        LD DE,2
+        JR again3                   ; drop IFTEMode
+
+again1:
+        LD L,(IX+2)                 ; peek loop limit
+        LD H,(IX+3)                 
+        OR A
+        SBC HL,DE
+        JR Z,again2
+        INC DE
+        LD (IX+0),E                 ; poke loop var
+        LD (IX+1),D                 
+        LD C,(IX+4)                 ; peek loop address
+        LD B,(IX+5)                 
+        JP (IY)
+again2:   
+        LD DE,6                     ; drop loop frame
+again3:
+        ADD IX,DE
+        JP (IY)
+
 
 ; ********************************************************************************
 ; Number Handling Routine - converts numeric ascii string to a 16-bit number in HL
@@ -987,15 +999,6 @@ Num2:
         sbc	hl,de
         JP putchar
 
-getGroup:                       ;= 11
-        SUB "A"  
-        ADD A,A
-        LD E,A
-        LD D,0
-        LD HL,(vDEFS)
-        ADD HL,DE
-        RET
-
 ; **************************************************************************
 ; Page 6 Alt primitives
 ; **************************************************************************
@@ -1058,14 +1061,23 @@ emit_:
         JP (IY)
 
 ifte_:
-        LD HL,vIFTEMode
-        LD (HL),TRUE
         POP DE
         LD A,E
         OR D
-        JP Z,begin1
+        JP NZ,ifte1
+        INC DE
+        PUSH DE                     ; push TRUE on stack for else clause
+        JP begin1                   ; skip to closing ) works with \) too 
+ifte1:
+        LD HL,-1                    ; push -1 on return stack to indicate IFTEMode
+        CALL rpush
         JP (IY)
-		
+
+; ifteEnd_:                           ;
+;         LD HL,FALSE                 ; push FALSE condition on stack
+;         PUSH HL
+;         JP (IY)
+
 exec_:
         CALL exec1
         JP (IY)
@@ -1244,7 +1256,7 @@ editDef3:
 
 printStk:                   ;= 40
         call ENTER
-        .cstr "\\a@2-\\D1-",$22,"\\_0=((",$22,"@\\b@\\(.)(,)2-))'"             
+        .cstr "\\a@2-\\D1-",$22,"\\_0=((",$22,"@\\b@\\(,)(.)2-))'"             
         JP (IY)
 
 ;*******************************************************************
@@ -1261,23 +1273,14 @@ arrDef1:
         CALL rpush          ; save start of array \[  \]
         JP NEXT         ; hardwired to NEXT
 
-; end a word array
-arrEnd:                     ;= 27
-        CALL rpop               ; DE = start of array
-        PUSH HL
-        EX DE,HL
-        LD HL,(vHeapPtr)        ; HL = heap ptr
-        OR A
-        SBC HL,DE               ; bytes on heap 
-        LD A,(vByteMode)
-        OR A
-        JR NZ,arrEnd2
-        SRL H           ; BC = m words
-        RR L
-arrEnd2:
-        PUSH HL 
-        LD IY,NEXT
-        JP (IY)         ; hardwired to NEXT
+getGroup:                       ;= 11
+        SUB "A"  
+        ADD A,A
+        LD E,A
+        LD D,0
+        LD HL,(vDEFS)
+        ADD HL,DE
+        RET
 
 ; **************************************************************************             
 ; def is used to create a colon definition
@@ -1297,21 +1300,20 @@ def:                        ; Create a colon definition
         LD (HL),E           ; Save low byte of address in CFA
         INC HL              
         LD (HL),D           ; Save high byte of address in CFA+1
-nextbyte:                   ; Skip to end of definition   
+def1:                   ; Skip to end of definition   
         LD A,(BC)           ; Get the next character
         INC BC              ; Point to next character
         LD (DE),A
         INC DE
         CP ";"                  ; Is it a semicolon 
-        JP z, end_def           ; end the definition
-        JR  nextbyte            ; get the next element
+        JP z, def2           ; end the definition
+        JR  def1            ; get the next element
 
-end_def:    
-        LD (vHeapPtr),DE        ; bump heap ptr to after definiton
+def2:    
         DEC BC
+def3:
+        LD (vHeapPtr),DE        ; bump heap ptr to after definiton
         JP (IY)       
-
-; ***************************************************************************
 
 hex:                            ;= 26
 	    LD HL,0		    		; 10t Clear HL to accept the number
@@ -1400,16 +1402,15 @@ nesting4:
 printhex:                       ;= 11  
                                 ; Display HL as a 16-bit number in hex.
         PUSH BC                 ; preserve the IP
-        LD	A,H
-		CALL	Print_Hex8
-		LD	A,L
-		CALL	Print_Hex8
-		POP BC
-		RET
+        LD A,H
+        CALL Print_Hex8
+        LD A,L
+        CALL Print_Hex8
+        POP BC
+        RET
 
 getRef:                         ;= 8
         INC BC
         LD A,(BC)
         CALL getGroup
         JP fetch1
-
