@@ -1,3 +1,16 @@
+; *************************************************************************
+;
+;       MINT Minimal Interpreter for the Z80 
+;
+;       Ken Boak, John Hardy and Craig Jones. 
+;
+;       GNU GENERAL PUBLIC LICENSE                   Version 3, 29 June 2007
+;
+;       see the LICENSE file in this repo for more information 
+;
+; *****************************************************************************
+
+;Intel Hex Loader
 
         .ORG    ROMSTART+$0d
          JP      hexloader
