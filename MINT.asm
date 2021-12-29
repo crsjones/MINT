@@ -153,7 +153,7 @@ waitchar4:
         LD (vTIBPtr),BC
         LD BC,TIB               ; Instructions stored on heap at address HERE
         DEC BC
-                                ; Drop into the NEXT and dispatch routines
+        JP NEXT
 
 ; ********************************************************************************
 ;
@@ -186,35 +186,33 @@ NEXT:                               ; 9
         LD H,msb(page4)             ; 7t    Load H with the 1st page address
         JP (HL)                     ; 4t    Jump to routine
 
-rpush:                              ; 11
-        DEC IX                  
-        LD (IX+0),H
-        DEC IX
-        LD (IX+0),L
-        RET
+; ARRAY compilation routine
+compNEXT:                       ; 20
+        POP DE          ; DE = return address
+        LD HL,(vHeapPtr)    ; load heap ptr
+        LD (HL),E       ; store lsb
+        LD A,(vByteMode)
+        INC HL          
+        OR A
+        JR NZ,compNext1
+        LD (HL),D
+        INC HL
+compNext1:
+        LD (vHeapPtr),HL    ; save heap ptr
+        JR NEXT
 
-rpop:                               ; 11
-        LD L,(IX+0)         
-        INC IX              
-        LD H,(IX+0)
-        INC IX                  
-        RET
+getRef:                         ;= 8
+        INC BC
+        LD A,(BC)
+        CALL getGroup
+        JP fetch1
 
-crlf:                               ; 18
-        LD A, '\r'
-        CALL putchar
-        LD A, '\n'           
-        JR writeChar1
-
-space:       
-        LD A,' '           
-        JR writeChar1
-
-writeChar:
-        LD (DE),A
-        INC DE
-writeChar1:
-        JP putchar
+enter:                          ; 9
+        LD HL,BC
+        CALL rpush              ; save Instruction Pointer
+        POP BC
+        DEC BC
+        JP  (IY)                ; Execute code from User def
 
 ; Print an 8-bit HEX number  - shortened KB 25/11/21
 ; A: Number to print
@@ -234,27 +232,15 @@ conv:
 		DAA
 		JP putchar
 
-ENTER:                          ; 9
-        LD HL,BC
-        CALL rpush              ; save Instruction Pointer
+printhex:                       ;= 11  
+                                ; Display HL as a 16-bit number in hex.
+        PUSH BC                 ; preserve the IP
+        LD A,H
+        CALL Print_Hex8
+        LD A,L
+        CALL Print_Hex8
         POP BC
-        DEC BC
-        JP  (IY)                ; Execute code from User def
-
-; ARRAY compilation routine
-compNEXT:                       ; 19
-        POP DE          ; DE = return address
-        LD HL,(vHeapPtr)    ; load heap ptr
-        LD (HL),E       ; store lsb
-        LD A,(vByteMode)
-        INC HL          
-        OR A
-        JR NZ,compNext1
-        LD (HL),D
-        INC HL
-compNext1:
-        LD (vHeapPtr),HL    ; save heap ptr
-        JR NEXT
+        RET
 
 ; **************************************************************************
 ; Macros must be written in Mint and end with ; 
@@ -503,7 +489,7 @@ altCodes:
         DB     lsb(comment_)    ;    \  comment text, skips reading until end of line
         DB     lsb(aNop_)       ;    ]
         DB     lsb(charCode_)   ;    ^
-        DB     lsb(sign_)       ;    _)  ( n -- b ) returns true if -ve 
+        DB     lsb(aNop_)       ;    _ 
         DB     lsb(aNop_)       ;    `            
         DB     lsb(sysVar_)     ;    a  ; start of data stack variable
         DB     lsb(sysVar_)     ;    b  ; base16 variable
@@ -1203,15 +1189,15 @@ rot_:                               ; a b c -- b c a
         PUSH HL                     ; b c a                         
         JP (IY)
 
-sign_:
-        POP HL
-        BIT 7,H
-        LD HL,0
-        JR Z, sign2
-        INC HL
-sign2:
-        PUSH HL
-        JP (IY)
+; sign_:
+;         POP HL
+;         BIT 7,H
+;         LD HL,0
+;         JR Z, sign2
+;         INC HL
+; sign2:
+;         PUSH HL
+        ; JP (IY)
 
 break_:
         POP HL
@@ -1235,11 +1221,11 @@ editDef_:
 ; copy definition to text input buffer
 ; update TIBPtr
 ; **************************************************************************             
-                            ;= 54
+
 editDef:                    ; lookup up def based on number
+        LD A,"A"
         POP DE
-        LD A,E
-        ADD A,"A"
+        ADD A,E
         EX AF,AF'
         LD HL,(vDEFS)
         ADD HL,DE
@@ -1270,8 +1256,7 @@ editDef3:
         OR A
         SBC HL,DE
         LD (vTIBPtr),HL
-        LD BC,HL
-        JP waitchar
+        JP (IY)
 
 printStk:                   ;= 40
         call ENTER
@@ -1410,18 +1395,33 @@ nesting4:
         DEC E
         RET 
         
-printhex:                       ;= 11  
-                                ; Display HL as a 16-bit number in hex.
-        PUSH BC                 ; preserve the IP
-        LD A,H
-        CALL Print_Hex8
-        LD A,L
-        CALL Print_Hex8
-        POP BC
+
+crlf:                               ; 18
+        LD A, '\r'
+        CALL putchar
+        LD A, '\n'           
+        JR writeChar1
+
+space:       
+        LD A,' '           
+        JR writeChar1
+
+writeChar:
+        LD (DE),A
+        INC DE
+writeChar1:
+        JP putchar
+
+rpush:                              ; 11
+        DEC IX                  
+        LD (IX+0),H
+        DEC IX
+        LD (IX+0),L
         RET
 
-getRef:                         ;= 8
-        INC BC
-        LD A,(BC)
-        CALL getGroup
-        JP fetch1
+rpop:                               ; 11
+        LD L,(IX+0)         
+        INC IX              
+        LD H,(IX+0)
+        INC IX                  
+        RET
