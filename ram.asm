@@ -53,7 +53,9 @@ RST28:      DS 2
 RST30:      DS 2                ; 
 BAUD        DS 2                ; 
 INTVEC:     DS 2                ; 
-NMIVEC:     DS 2                ; 
+KEYIN:      DS 1                ;input key
+KEYCNT:     DS 1                ;key counter
+;NMIVEC:     DS 2                ;not used
 GETCVEC:    DS 2                ;   
 PUTCVEC:    DS 2                ;   
 ; ****************************************************************
