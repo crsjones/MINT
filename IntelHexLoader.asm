@@ -15,7 +15,7 @@
         .ORG    ROMSTART+$0d
          JP      hexloader
 
-        .ORG     ROMSTART+$0120
+        .ORG     ROMSTART+$0125
 hexloader:
         POP  HL      ;discard return address
         PUSH BC

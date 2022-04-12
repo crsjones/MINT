@@ -1,3 +1,4 @@
+.engine mycomputer
 ; *************************************************************************
 ;
 ;       MINT Minimal Interpreter for the Z80 
@@ -12,10 +13,9 @@
 
 ; ASM80 emulator build
 
-.engine mycomputer
-
-PGMSTART    EQU $0000
-RAMSTART    EQU $0800
+PGMSTART    .EQU $0100
+ROMSTART    .EQU $0000
+RAMSTART    .EQU $0800
 
         .ORG PGMSTART
 
@@ -44,3 +44,4 @@ putchar:
 
 .include "MINT.asm"
 .include "ram.asm"
+

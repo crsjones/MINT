@@ -92,7 +92,6 @@ IntRet:
 
 ;Intel Hex File Load
 .include "IntelHexLoader.asm"
-
-         .org PGMSTART
+;MINT
 .include "MINT.asm"
 .include "ram.asm"

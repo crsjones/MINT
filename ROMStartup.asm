@@ -79,4 +79,3 @@ RESET:
     	LD (RST28),HL
     	LD (RST30),HL
         LD (INTVEC),HL
-;        LD (NMIVEC),HL
